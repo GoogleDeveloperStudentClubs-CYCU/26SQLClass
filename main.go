@@ -179,7 +179,7 @@ func main() {
 		content := `
 		<div class="container" style="border-top-color: #34A853;">
 			<h2>📡 網路診斷工具</h2>
-			<form method="GET">
+			<form method="POST">
 				<label>目標 IP:</label><br>
 				<input type="text" name="ip" placeholder="例如: 8.8.8.8" value="{{.IP}}"><br>
 				<input type="submit" value="執行 Ping 測試" style="background-color: #34A853;">
