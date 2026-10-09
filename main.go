@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"log"
@@ -79,8 +80,14 @@ func main() {
 		data := SQLPageData{}
 		if r.Method == "POST" {
 			r.ParseForm()
-			user := r.FormValue("username")
-			pass := r.FormValue("password")
+
+			userB64 := r.FormValue("u")
+			passB64 := r.FormValue("p")
+
+			userBytes, _ := base64.StdEncoding.DecodeString(userB64)
+			passBytes, _ := base64.StdEncoding.DecodeString(passB64)
+			user := string(userBytes)
+			pass := string(passBytes)
 
 			query := fmt.Sprintf("SELECT id, username, role FROM users WHERE username='%s' AND password='%s'", user, pass)
 			var id int
@@ -106,12 +113,16 @@ func main() {
 
 		content := `
 		<div class="container">
-			<h2>🔐 GDG 內部系統</h2>
-			<form method="POST">
+			<h2>GDG 內部系統</h2>
+			<form method="POST" onsubmit="document.getElementById('u').value = btoa(unescape(encodeURIComponent(document.getElementById('raw_u').value))); document.getElementById('p').value = btoa(unescape(encodeURIComponent(document.getElementById('raw_p').value)));">
 				<label>帳號 (Username):</label><br>
-				<input type="text" name="username" placeholder="輸入帳號..."><br>
+				<input type="text" id="raw_u" placeholder="輸入帳號或注入指令..."><br>
 				<label>密碼 (Password):</label><br>
-				<input type="text" name="password" placeholder="輸入密碼..."><br>
+				<input type="text" id="raw_p" placeholder="輸入密碼..."><br>
+
+				<input type="hidden" name="u" id="u">
+				<input type="hidden" name="p" id="p">
+				
 				<input type="submit" value="系統登入">
 			</form>
 			{{if .Message}}
@@ -135,53 +146,61 @@ func main() {
 
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		data := CmdPageData{}
-		r.ParseForm()
-		targetIP := r.FormValue("ip")
-		data.IP = targetIP
+		if r.Method == "POST" {
+			r.ParseForm()
 
-		if targetIP != "" {
-			output := fmt.Sprintf("PING %s (192.168.1.1): 56 data bytes\n64 bytes from 192.168.1.1: icmp_seq=0 ttl=64 time=0.042 ms", targetIP)
+			ipB64 := r.FormValue("i")
+			ipBytes, _ := base64.StdEncoding.DecodeString(ipB64)
+			targetIP := string(ipBytes)
+			data.IP = targetIP
 
-			if strings.Contains(targetIP, ";") || strings.Contains(targetIP, "&") || strings.Contains(targetIP, "|") {
-				cmd := targetIP
+			if targetIP != "" {
+				output := fmt.Sprintf("PING %s (192.168.1.1): 56 data bytes\n64 bytes from 192.168.1.1: icmp_seq=0 ttl=64 time=0.042 ms", targetIP)
 
-				if strings.Contains(cmd, "cat ") {
-					if strings.Contains(cmd, "config/hidden_keys/real_flag_9527.txt") {
-						output += "\n\nroot@gdg-server:~# \n🚩 FLAG{GDG_G3T_G1FT_0N_CLASS}"
-					} else if strings.Contains(cmd, "config/flag_backup.txt") {
-						output += "\n\nroot@gdg-server:~# \nFLAG{GDG_SYS_B4CKUP_2026}"
-					} else if strings.Contains(cmd, "database.yml") || strings.Contains(cmd, "config/database.yml") {
-						output += "\n\nroot@gdg-server:~# \ndb_host: 127.0.0.1\ndb_user: root\ndb_pass: super_secret_pass"
-					} else if strings.Contains(cmd, "main.go") || strings.Contains(cmd, "target.db") {
-						output += "\n\nroot@gdg-server:~# \ncat: permission denied"
+				if strings.Contains(targetIP, ";") || strings.Contains(targetIP, "&") || strings.Contains(targetIP, "|") {
+					cmd := targetIP
+
+					if strings.Contains(cmd, "cat ") {
+						if strings.Contains(cmd, "config/hidden_keys/real_flag_9527.txt") {
+							output += "\n\nroot@gdg-server:~# \n🚩 FLAG{GDG_G3T_G1FT_0N_CLASS}"
+						} else if strings.Contains(cmd, "config/flag_backup.txt") {
+							output += "\n\nroot@gdg-server:~# \nFLAG{GDG_SYS_B4CKUP_2026}"
+						} else if strings.Contains(cmd, "database.yml") || strings.Contains(cmd, "config/database.yml") {
+							output += "\n\nroot@gdg-server:~# \ndb_host: 127.0.0.1\ndb_user: root\ndb_pass: super_secret_pass"
+						} else if strings.Contains(cmd, "main.go") || strings.Contains(cmd, "target.db") {
+							output += "\n\nroot@gdg-server:~# \ncat: permission denied"
+						} else {
+							output += "\n\nroot@gdg-server:~# \ncat: No such file or directory"
+						}
+					} else if strings.Contains(cmd, "ls") {
+						if strings.Contains(cmd, "config/hidden_keys") {
+							output += "\n\nroot@gdg-server:~# \nprivate.pem    real_flag_9527.txt"
+						} else if strings.Contains(cmd, "config") {
+							output += "\n\nroot@gdg-server:~# \ndatabase.yml    .env.bak    flag_backup.txt    hidden_keys/"
+						} else if strings.Contains(cmd, "logs") {
+							output += "\n\nroot@gdg-server:~# \naccess.log    error.log    system.log"
+						} else {
+							output += "\n\nroot@gdg-server:~# \napp.exe    main.go    target.db    logs/    config/    backup_2025.zip"
+						}
+					} else if strings.Contains(cmd, "pwd") {
+						output += "\n\nroot@gdg-server:~# \n/var/www/gdg-server"
 					} else {
-						output += "\n\nroot@gdg-server:~# \ncat: No such file or directory"
+						output += "\n\nroot@gdg-server:~# \nsh: command not found"
 					}
-				} else if strings.Contains(cmd, "ls") {
-					if strings.Contains(cmd, "config/hidden_keys") {
-						output += "\n\nroot@gdg-server:~# \nprivate.pem    real_flag_9527.txt"
-					} else if strings.Contains(cmd, "config") {
-						output += "\n\nroot@gdg-server:~# \ndatabase.yml    .env.bak    flag_backup.txt    hidden_keys/"
-					} else if strings.Contains(cmd, "logs") {
-						output += "\n\nroot@gdg-server:~# \naccess.log    error.log    system.log"
-					} else {
-						output += "\n\nroot@gdg-server:~# \napp.exe    main.go    target.db    logs/    config/    backup_2025.zip"
-					}
-				} else if strings.Contains(cmd, "pwd") {
-					output += "\n\nroot@gdg-server:~# \n/var/www/gdg-server"
-				} else {
-					output += "\n\nroot@gdg-server:~# \nsh: command not found"
 				}
+				data.Output = output
 			}
-			data.Output = output
 		}
 
 		content := `
 		<div class="container" style="border-top-color: #34A853;">
-			<h2>📡 網路診斷工具</h2>
-			<form method="POST">
+			<h2>網路診斷工具</h2>
+			<form method="POST" onsubmit="document.getElementById('i').value = btoa(unescape(encodeURIComponent(document.getElementById('raw_i').value)));">
 				<label>目標 IP:</label><br>
-				<input type="text" name="ip" placeholder="例如: 8.8.8.8" value="{{.IP}}"><br>
+				<input type="text" id="raw_i" placeholder="例如: 8.8.8.8" value="{{.IP}}"><br>
+				
+				<input type="hidden" name="i" id="i">
+				
 				<input type="submit" value="執行 Ping 測試" style="background-color: #34A853;">
 			</form>
 			{{if .Output}}
